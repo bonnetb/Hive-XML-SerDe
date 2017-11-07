@@ -23,12 +23,16 @@ package com.ibm.spss.hive.serde2.xml;
 
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.util.Map;
+import java.util.Properties;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.Seekable;
+import org.apache.hadoop.hive.ql.exec.Utilities;
+import org.apache.hadoop.hive.ql.plan.PartitionDesc;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
@@ -69,8 +73,28 @@ public class XmlInputFormat extends TextInputFormat {
 
         public XmlRecordReader(FileSplit input, JobConf jobConf) throws IOException {
             Configuration conf = jobConf;
-            this.startTag = conf.get(START_TAG_KEY).getBytes("utf-8");
-            this.endTag = conf.get(END_TAG_KEY).getBytes("utf-8");
+            final String startTagString = conf.get(START_TAG_KEY);
+            if (startTagString != null) {
+                this.startTag = startTagString.getBytes("utf-8");
+            }
+            final String endTagString = conf.get(END_TAG_KEY);
+            if (endTagString != null) {
+                this.endTag = endTagString.getBytes("utf-8");
+            }
+            if (startTag == null || endTag == null) {
+                for (Map.Entry<String, PartitionDesc> pathsAndParts : Utilities.getMapWork(jobConf)
+                        .getPathToPartitionInfo().entrySet()) {
+                    if (input.getPath().toString().startsWith(pathsAndParts.getKey())) {
+                        final Properties properties = pathsAndParts.getValue().getTableDesc().getProperties();
+                        final String startTagStringbis = properties.getProperty(START_TAG_KEY);
+                        final String endTagStringbis = properties.getProperty(END_TAG_KEY);
+                        if (startTagStringbis != null)
+                            startTag = startTagStringbis.getBytes("utf-8");
+                        if (endTagStringbis != null)
+                            endTag = endTagStringbis.getBytes("utf-8");
+                    }
+                }
+            }
             FileSplit split = (FileSplit) input;
 
             Path file = split.getPath();
